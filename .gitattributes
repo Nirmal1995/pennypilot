@@ -1,0 +1,2 @@
+# Keep LF endings so shell scripts and Dockerfiles work when committed from Windows
+* text=auto eol=lf

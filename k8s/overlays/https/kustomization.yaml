@@ -1,0 +1,21 @@
+# Use this overlay once a domain points at the static IP.
+# 1. Replace app.example.com in managed-cert.yaml with your domain.
+# 2. Set KUSTOMIZE_DIR=k8s/overlays/https in the Jenkinsfile.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - managed-cert.yaml
+
+patches:
+  - target:
+      kind: Ingress
+      name: pennypilot
+    patch: |-
+      - op: add
+        path: /metadata/annotations/networking.gke.io~1managed-certificates
+        value: pennypilot-cert
+      - op: add
+        path: /metadata/annotations/networking.gke.io~1v1beta1.FrontendConfig
+        value: pennypilot-https-redirect

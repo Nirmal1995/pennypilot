@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+project_id   = "your-gcp-project-id"
+region       = "europe-west1"
+zone         = "europe-west1-b"
+machine_type = "e2-standard-2"
+node_count   = 1
+use_spot     = true

@@ -1,0 +1,81 @@
+# Presentation tier: React build served by unprivileged nginx.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pennypilot-frontend
+  labels:
+    app.kubernetes.io/name: pennypilot-frontend
+    app.kubernetes.io/part-of: pennypilot
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pennypilot-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pennypilot-frontend
+        app.kubernetes.io/part-of: pennypilot
+    spec:
+      containers:
+        - name: web
+          image: pennypilot-web # replaced by kustomize in the pipeline
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: API_UPSTREAM
+              value: pennypilot-backend:8080
+          readinessProbe:
+            httpGet:
+              path: /nginx-health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /nginx-health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pennypilot-frontend
+  labels:
+    app.kubernetes.io/name: pennypilot-frontend
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "pennypilot-frontend"}'
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: pennypilot-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: pennypilot-frontend
+spec:
+  healthCheck:
+    type: HTTP
+    requestPath: /nginx-health
+    port: 8080

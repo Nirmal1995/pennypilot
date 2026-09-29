@@ -1,0 +1,27 @@
+# External HTTP(S) Load Balancer. The static IP is created by Terraform (infra/terraform).
+# Works over plain HTTP on the IP. Use overlays/https once you have a domain.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pennypilot
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: pennypilot-ip
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: pennypilot-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pennypilot-frontend
+                port:
+                  number: 80

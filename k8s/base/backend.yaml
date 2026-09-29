@@ -1,0 +1,136 @@
+# Application tier: Node.js REST API.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pennypilot-backend
+data:
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: pennypilot
+  APP_ENV: production
+  MIGRATE_ON_START: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pennypilot-backend
+  labels:
+    app.kubernetes.io/name: pennypilot-backend
+    app.kubernetes.io/part-of: pennypilot
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pennypilot-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pennypilot-backend
+        app.kubernetes.io/part-of: pennypilot
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: pennypilot-api # replaced by kustomize in the pipeline
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: pennypilot-backend
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pennypilot-db
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pennypilot-db
+                  key: password
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pennypilot-backend
+  labels:
+    app.kubernetes.io/name: pennypilot-backend
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "pennypilot-backend"}'
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: pennypilot-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: pennypilot-backend
+spec:
+  healthCheck:
+    type: HTTP
+    requestPath: /healthz
+    port: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pennypilot-backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pennypilot-backend
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

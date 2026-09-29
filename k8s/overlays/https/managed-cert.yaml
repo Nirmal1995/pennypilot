@@ -1,0 +1,19 @@
+# Google-managed TLS certificate. Provisioning takes 15 to 60 minutes after DNS resolves.
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: pennypilot-cert
+  namespace: pennypilot
+spec:
+  domains:
+    - app.example.com
+---
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: pennypilot-https-redirect
+  namespace: pennypilot
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: MOVED_PERMANENTLY_DEFAULT
